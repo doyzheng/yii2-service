@@ -5,6 +5,8 @@ namespace doyzheng\yii2service;
 use Yii;
 use yii\base\Component;
 use yii\base\UnknownClassException;
+use yii\db\ActiveRecord;
+use yii\db\Expression;
 
 /**
  * yii2 数据层服务类
@@ -20,6 +22,11 @@ class Service extends Component
     public $model;
     
     /**
+     * @var mixed 错误信息
+     */
+    private static $errors = [];
+    
+    /**
      * @throws UnknownClassException
      */
     public function init()
@@ -30,14 +37,27 @@ class Service extends Component
     }
     
     /**
-     * @return \yii\db\ActiveRecord
+     * 设置模型对象
+     * @param ActiveRecord $model
+     * @return bool
      */
-    public function model()
+    public function setModel($model)
+    {
+        $this->model = $model;
+        return true;
+    }
+    
+    /**
+     * 获取模型对象
+     * @return ActiveRecord
+     */
+    public function getModel()
     {
         return new $this->model;
     }
     
     /**
+     * 获取查询对象
      * @return \yii\db\ActiveQuery
      */
     public function find()
@@ -51,7 +71,7 @@ class Service extends Component
      */
     public function getPk()
     {
-        $attr = $this->model()->primaryKey();
+        $attr = $this->getModel()->primaryKey();
         return array_shift($attr);
     }
     
@@ -66,13 +86,42 @@ class Service extends Component
     }
     
     /**
+     * 获取错误信息
+     * @return mixed
+     */
+    public function getErrors()
+    {
+        return self::$errors;
+    }
+    
+    /**
+     * 设置错误信息
+     * @param mixed $error
+     * @return bool
+     */
+    public function setErrors($error = '')
+    {
+        self::$errors[] = $error;
+        return true;
+    }
+    
+    /**
+     * 获取默认排序方式
+     * @return string
+     */
+    public function getDefaultOrder()
+    {
+        return $this->getPk() . ' DESC';
+    }
+    
+    /**
      * 添加数据
      * @param array $data
      * @return int
      */
     public function add($data)
     {
-        $model = $this->model();
+        $model = $this->getModel();
         $model->setAttributes($data);
         if ($model->save()) {
             $pk = $this->getPk();
@@ -204,7 +253,7 @@ class Service extends Component
     public function deleteAll($where, $params = [])
     {
         try {
-            return $this->model()->deleteAll($where, $params);
+            return $this->getModel()->deleteAll($where, $params);
         } catch (\Throwable $exception) {
             $this->setErrors($exception);
         }
@@ -212,7 +261,7 @@ class Service extends Component
     }
     
     /**
-     * 统计符合统计记录数量
+     * 统计符合条件记录数量
      * @param array  $where
      * @param string $fields
      * @return int
@@ -223,7 +272,7 @@ class Service extends Component
     }
     
     /**
-     * 统计字段合计
+     * 返回指定列值的和
      * @param array  $where
      * @param string $fields
      * @return int
@@ -234,36 +283,80 @@ class Service extends Component
     }
     
     /**
-     * @var mixed 错误信息
-     */
-    private static $errors = [];
-    
-    /**
-     * 设置错误信息
+     * 返回指定列值的最小值
+     * @param array  $where
+     * @param string $field
      * @return mixed
      */
-    public function getErrors()
+    public function min($where, $field)
     {
-        return self::$errors;
+        return $this->find()->where($where)->min($field);
     }
     
     /**
-     * @param mixed $error
+     * 返回指定列值的最大值
+     * @param array  $where
+     * @param string $field
+     * @return mixed
+     */
+    public function max($where, $field)
+    {
+        return $this->find()->where($where)->max($field);
+    }
+    
+    /**
+     * 字段值增长
+     * @param array        $where 条件
+     * @param string|array $field 字段名
+     * @param int          $step  增长值
      * @return bool
      */
-    public function setErrors($error = '')
+    public function inc($where, $field, $step = 1)
     {
-        self::$errors[] = $error;
-        return true;
+        $fields = is_string($field) ? explode(',', $field) : $field;
+        $upData = [];
+        foreach ($fields as $field => $val) {
+            if (is_numeric($field)) {
+                $field = $val;
+            } else {
+                $step = $val;
+            }
+            $upData[$field] = $this->raw("$field + $step");
+        }
+        return boolval(static::getModel()->updateAll($upData, $where));
     }
     
     /**
-     * 获取默认排序
-     * @return string
+     * 字段值减少
+     * @param array        $where 条件
+     * @param string|array $field 字段名
+     * @param int          $step  增长值
+     * @return bool
      */
-    public function getDefaultOrder()
+    public function dec($where, $field, $step = 1)
     {
-        return $this->getPk() . ' DESC';
+        $fields = is_string($field) ? explode(',', $field) : $field;
+        $upData = [];
+        foreach ($fields as $field => $val) {
+            if (is_numeric($field)) {
+                $field = $val;
+            } else {
+                $step = $val;
+            }
+            $upData[$field] = $this->raw("$field - $step");
+        }
+        return boolval(static::getModel()->updateAll($upData, $where));
+    }
+    
+    /**
+     * 使用表达式设置数据
+     * @access public
+     * @param  mixed $value 表达式
+     * @return Expression
+     */
+    public function raw($value)
+    {
+        return new Expression($value);
     }
     
 }
