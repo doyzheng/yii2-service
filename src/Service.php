@@ -136,11 +136,11 @@ class Service extends Component
      * @param array  $where
      * @param string $fields
      * @param mixed  $order
-     * @return array
+     * @return ActiveRecord
      */
     public function get($where, $fields = '', $order = '')
     {
-        return $this->find()->where($where)->select($fields)->orderBy($order)->asArray()->one();
+        return $this->find()->where($where)->select($fields)->orderBy($order)->one();
     }
     
     /**
@@ -148,12 +148,12 @@ class Service extends Component
      * @param array  $where
      * @param string $fields
      * @param string $order
-     * @return array
+     * @return array|ActiveRecord[]
      */
     public function getAll($where, $fields = '', $order = '')
     {
         $order = $order ? $order : $this->getDefaultOrder();
-        return $this->find()->where($where)->select($fields)->orderBy($order)->asArray()->all();
+        return $this->find()->where($where)->select($fields)->orderBy($order)->all();
     }
     
     /**
@@ -163,7 +163,7 @@ class Service extends Component
      * @param string $limit
      * @param string $fields
      * @param string $order
-     * @return array
+     * @return array|ActiveRecord[]
      */
     public function getPage($where, $page, $limit = '', $fields = '', $order = '')
     {
@@ -171,7 +171,7 @@ class Service extends Component
             $page = 1;
         }
         $order = $order ? $order : $this->getDefaultOrder();
-        return $this->find()->where($where)->offset(($page - 1) * $limit)->limit($limit)->select($fields)->orderBy($order)->asArray()->all();
+        return $this->find()->where($where)->offset(($page - 1) * $limit)->limit($limit)->select($fields)->orderBy($order)->all();
     }
     
     /**
@@ -268,7 +268,7 @@ class Service extends Component
      */
     public function count($where, $fields = '*')
     {
-        return $this->find()->where($where)->count($fields);
+        return (int)$this->find()->where($where)->count($fields);
     }
     
     /**
@@ -279,18 +279,18 @@ class Service extends Component
      */
     public function sum($where, $fields)
     {
-        return $this->find()->where($where)->sum($fields);
+        return (int)$this->find()->where($where)->sum($fields);
     }
     
     /**
      * 返回指定列值的最小值
      * @param array  $where
      * @param string $field
-     * @return mixed
+     * @return int
      */
     public function min($where, $field)
     {
-        return $this->find()->where($where)->min($field);
+        return (int)$this->find()->where($where)->min($field);
     }
     
     /**
@@ -301,7 +301,7 @@ class Service extends Component
      */
     public function max($where, $field)
     {
-        return $this->find()->where($where)->max($field);
+        return (int)$this->find()->where($where)->max($field);
     }
     
     /**
