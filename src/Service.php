@@ -13,7 +13,7 @@ use yii\db\Expression;
  * Class Service
  * @package doyzheng\yii2service
  */
-class Service extends Component
+class Service
 {
     
     /**
@@ -27,6 +27,21 @@ class Service extends Component
     private static $errors = [];
     
     /**
+     * 构造方法
+     * Service constructor.
+     * @param array $config
+     */
+    public function __construct($config = [])
+    {
+        foreach ($config as $name => $value) {
+            if (property_exists($this, $name)) {
+                $this->$name = $value;
+            }
+        }
+    }
+    
+    /**
+     * 初始化
      * @throws UnknownClassException
      */
     public function init()
@@ -66,6 +81,15 @@ class Service extends Component
     }
     
     /**
+     * 开始事务
+     * @return \yii\db\Transaction
+     */
+    public function beginTransaction()
+    {
+        return Yii::$app->db->beginTransaction();
+    }
+    
+    /**
      * 获取模型主键
      * @return string
      */
@@ -73,16 +97,6 @@ class Service extends Component
     {
         $attr = $this->getModel()->primaryKey();
         return array_shift($attr);
-    }
-    
-    /**
-     * 开始事务操作
-     * @param null $isolationLevel
-     * @return \yii\db\Transaction
-     */
-    public function beginTransaction($isolationLevel = null)
-    {
-        return Yii::$app->db->beginTransaction($isolationLevel);
     }
     
     /**
@@ -140,7 +154,7 @@ class Service extends Component
      */
     public function get($where, $fields = '', $order = '')
     {
-        return $this->find()->where($where)->select($fields)->orderBy($order)->one();
+        return $this->find()->where($where)->select($fields)->orderBy($order)->one();;
     }
     
     /**
@@ -148,7 +162,7 @@ class Service extends Component
      * @param array  $where
      * @param string $fields
      * @param string $order
-     * @return array|ActiveRecord[]
+     * @return ActiveRecord[]
      */
     public function getAll($where, $fields = '', $order = '')
     {
@@ -163,15 +177,14 @@ class Service extends Component
      * @param string $limit
      * @param string $fields
      * @param string $order
-     * @return array|ActiveRecord[]
+     * @return ActiveRecord[]
      */
     public function getPage($where, $page, $limit = '', $fields = '', $order = '')
     {
-        if ($page < 1) {
-            $page = 1;
-        }
-        $order = $order ? $order : $this->getDefaultOrder();
-        return $this->find()->where($where)->offset(($page - 1) * $limit)->limit($limit)->select($fields)->orderBy($order)->all();
+        $page   = $page < 1 ? 1 : $page;
+        $offset = ($page - 1) * $limit;
+        $order  = $order ? $order : $this->getDefaultOrder();
+        return $this->find()->where($where)->offset($offset)->limit($limit)->select($fields)->orderBy($order)->all();
     }
     
     /**
