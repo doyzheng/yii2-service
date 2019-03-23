@@ -3,7 +3,6 @@
 namespace doyzheng\yii2service;
 
 use Yii;
-use yii\base\Component;
 use yii\base\UnknownClassException;
 use yii\db\ActiveRecord;
 use yii\db\Expression;
@@ -22,6 +21,16 @@ class Service
     public $model;
     
     /**
+     * @var bool 查询结果返回数组
+     */
+    public $asArray;
+    
+    /**
+     * @var array 基础查询条件
+     */
+    public $baseWhere;
+    
+    /**
      * @var mixed 错误信息
      */
     private static $errors = [];
@@ -30,6 +39,7 @@ class Service
      * 构造方法
      * Service constructor.
      * @param array $config
+     * @throws UnknownClassException
      */
     public function __construct($config = [])
     {
@@ -38,6 +48,7 @@ class Service
                 $this->$name = $value;
             }
         }
+        $this->init();
     }
     
     /**
@@ -81,6 +92,48 @@ class Service
     }
     
     /**
+     * 查询结果返回数组
+     * @param bool $value
+     */
+    public function asArray($value = false)
+    {
+        $this->asArray = $value;
+    }
+    
+    /**
+     * 获取查询条件
+     * @param $where
+     */
+    public function getWhere($where)
+    {
+        $condition[] = 'and';
+        if ($where) {
+            $condition[] = $where;
+        }
+        if ($baseWhere = $this->getBaseWhere()) {
+            $condition[] = $baseWhere;
+        }
+        return $condition;
+    }
+    
+    /**
+     * @return array 基础查询条件
+     */
+    public function getBaseWhere()
+    {
+        return $this->baseWhere;
+    }
+    
+    /**
+     * 数组基础查询条件
+     * @param array $where
+     */
+    public function setBaseWhere($where)
+    {
+        $this->baseWhere = $where;
+    }
+    
+    /**
      * 开始事务
      * @return \yii\db\Transaction
      */
@@ -120,6 +173,29 @@ class Service
     }
     
     /**
+     * 获取查询对象
+     * @param array  $where
+     * @param string $fields
+     * @param string $order
+     * @param bool   $asArray
+     * @return \yii\db\ActiveQuery
+     */
+    public function getQuery($where = [], $fields = '', $order = '', $asArray = false)
+    {
+        $activeQuery = $this->find()->where($this->getWhere($where));
+        if ($fields) {
+            $activeQuery->select($fields);
+        }
+        if ($order) {
+            $activeQuery->orderBy($order);
+        }
+        if ($asArray) {
+            $activeQuery->asArray($asArray);
+        }
+        return $activeQuery;
+    }
+    
+    /**
      * 获取默认排序方式
      * @return string
      */
@@ -152,9 +228,10 @@ class Service
      * @param mixed  $order
      * @return ActiveRecord
      */
-    public function get($where, $fields = '', $order = '')
+    public function get($where = [], $fields = '', $order = '')
     {
-        return $this->find()->where($where)->select($fields)->orderBy($order)->one();;
+        $asArray = is_string($fields) && stripos($fields, ' as ') !== false;
+        return $this->getQuery($where, $fields, $order, $asArray)->one();
     }
     
     /**
@@ -164,10 +241,11 @@ class Service
      * @param string $order
      * @return ActiveRecord[]
      */
-    public function getAll($where, $fields = '', $order = '')
+    public function getAll($where = [], $fields = '', $order = '')
     {
+        $asArray = is_string($fields) && stripos($fields, ' as ') !== false;
         $order = $order ? $order : $this->getDefaultOrder();
-        return $this->find()->where($where)->select($fields)->orderBy($order)->all();
+        return $this->getQuery($where, $fields, $order, $asArray)->all();
     }
     
     /**
@@ -179,12 +257,13 @@ class Service
      * @param string $order
      * @return ActiveRecord[]
      */
-    public function getPage($where, $page, $limit = '', $fields = '', $order = '')
+    public function getPage($where = [], $page = '1', $limit = '', $fields = '', $order = '')
     {
-        $page   = $page < 1 ? 1 : $page;
+        $page = $page < 1 ? 1 : $page;
+        $limit = $limit < 1 ? 1 : $limit;
         $offset = ($page - 1) * $limit;
-        $order  = $order ? $order : $this->getDefaultOrder();
-        return $this->find()->where($where)->offset($offset)->limit($limit)->select($fields)->orderBy($order)->all();
+        $order = $order ? $order : $this->getDefaultOrder();
+        return $this->getQuery($where, $fields, $order)->offset($offset)->limit($limit)->all();
     }
     
     /**
@@ -195,7 +274,7 @@ class Service
      */
     public function update($where, $data)
     {
-        $model = $this->find()->where($where)->one();
+        $model = $this->getQuery($where)->one();
         if ($model) {
             $model->setAttributes($data);
             if ($model->save()) {
@@ -214,7 +293,7 @@ class Service
      */
     public function updateAll($where, $data)
     {
-        $models = $this->find()->where($where)->all();
+        $models = $this->getQuery($where)->all();
         if ($models) {
             try {
                 $tr = $this->beginTransaction();
@@ -235,14 +314,13 @@ class Service
         return false;
     }
     
-    /**
-     * 单条删除
+    /**单条删除
      * @param array $where
      * @return bool
      */
     public function delete($where)
     {
-        $model = $this->find()->where($where)->select($this->getPk())->one();
+        $model = $this->getQuery($where, $this->getPk())->one();
         if ($model) {
             try {
                 if (!$model->delete()) {
@@ -279,9 +357,9 @@ class Service
      * @param string $fields
      * @return int
      */
-    public function count($where, $fields = '*')
+    public function count($where = [], $fields = '*')
     {
-        return (int)$this->find()->where($where)->count($fields);
+        return (int)$this->getQuery($where)->count($fields);
     }
     
     /**
@@ -290,9 +368,15 @@ class Service
      * @param string $fields
      * @return int
      */
+    
+    /**
+     * @param array $where
+     * @param mixed $fields
+     * @return int
+     */
     public function sum($where, $fields)
     {
-        return (int)$this->find()->where($where)->sum($fields);
+        return (int)$this->getQuery($where)->sum($fields);
     }
     
     /**
@@ -303,7 +387,7 @@ class Service
      */
     public function min($where, $field)
     {
-        return (int)$this->find()->where($where)->min($field);
+        return (int)$this->getQuery($where)->min($field);
     }
     
     /**
@@ -314,7 +398,7 @@ class Service
      */
     public function max($where, $field)
     {
-        return (int)$this->find()->where($where)->max($field);
+        return (int)$this->getQuery($where)->max($field);
     }
     
     /**
