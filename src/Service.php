@@ -36,6 +36,11 @@ class Service
     private static $errors = [];
     
     /**
+     * @var string 主键ID
+     */
+    private $primaryKey;
+    
+    /**
      * 构造方法
      * Service constructor.
      * @param array $config
@@ -60,6 +65,7 @@ class Service
         if (!class_exists($this->model)) {
             throw new UnknownClassException($this->model);
         }
+        $this->id = md5($this->model);
     }
     
     /**
@@ -102,7 +108,8 @@ class Service
     
     /**
      * 获取查询条件
-     * @param $where
+     * @param array $where
+     * @return array
      */
     public function getWhere($where)
     {
@@ -144,12 +151,15 @@ class Service
     
     /**
      * 获取模型主键
-     * @return string
+     * @return mixed
      */
     public function getPk()
     {
-        $attr = $this->getModel()->primaryKey();
-        return array_shift($attr);
+        if (!$this->primaryKey) {
+            $attr = $this->getModel()->primaryKey();
+            $this->primaryKey = array_shift($attr);
+        }
+        return $this->primaryKey;
     }
     
     /**
@@ -182,7 +192,8 @@ class Service
      */
     public function getQuery($where = [], $fields = '', $order = '', $asArray = false)
     {
-        $activeQuery = $this->find()->where($this->getWhere($where));
+        $where = $this->getWhere($where);
+        $activeQuery = $this->find()->where($where);
         if ($fields) {
             $activeQuery->select($fields);
         }
@@ -314,7 +325,8 @@ class Service
         return false;
     }
     
-    /**单条删除
+    /**
+     * 单条删除
      * @param array $where
      * @return bool
      */
@@ -366,12 +378,6 @@ class Service
      * 返回指定列值的和
      * @param array  $where
      * @param string $fields
-     * @return int
-     */
-    
-    /**
-     * @param array $where
-     * @param mixed $fields
      * @return int
      */
     public function sum($where, $fields)

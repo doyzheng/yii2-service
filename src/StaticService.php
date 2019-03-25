@@ -24,7 +24,7 @@ use yii\base\UnknownMethodException;
  * @method static bool add($data)
  * @method static array get($where = [], $fields = '', $order = '')
  * @method static array getAll($where = [], $fields = '', $order = '')
- * @method static array getPage($where, $page, $limit = '', $fields = '', $order = '')
+ * @method static array getPage($where = [], $page = '', $limit = '', $fields = '', $order = '')
  * @method static bool update($where, $data)
  * @method static bool updateAll($where, $data, $params = [])
  * @method static bool delete($where)
@@ -57,14 +57,20 @@ abstract class StaticService
     protected static $baseWhere;
     
     /**
-     * 静态调用
+     * @var Service
+     */
+    protected static $service;
+    
+    /**
+     * 魔术方法(调用不存在的静态方法)
      * @param string $name
-     * @param mixed  $arguments
-     * @return array|mixed
+     * @param array  $arguments
+     * @return bool|mixed
      * @throws \yii\base\UnknownClassException
      */
     public static function __callStatic($name, $arguments)
     {
+        // 调用静态方法之前回调
         static::beforeCall($name, $arguments);
         // 查询是否有缓存
         $cacheKey = $arguments;
@@ -79,25 +85,28 @@ abstract class StaticService
         }
         // 设置缓存
         static::setCache($cacheKey, $result);
-        static::afterCall($name, $arguments);
+        static::afterCall($name, $arguments, $result);
         return $result;
     }
     
     /**
      * 调用Service方法
-     * @param string $name
-     * @param mixed  $arguments
+     * @param $name
+     * @param $arguments
      * @return mixed
      * @throws \yii\base\UnknownClassException
      */
     private static function callService($name, $arguments)
     {
-        $service = new Service([
-            'model'     => static::$model,
-            'baseWhere' => static::getBaseWhere()
-        ]);
-        if (method_exists($service, $name)) {
-            return call_user_func_array([$service, $name], $arguments);
+        if (!static::$service) {
+            $config = [
+                'model'     => static::$model,
+                'baseWhere' => static::getBaseWhere()
+            ];
+            static::$service = new Service($config);
+        }
+        if (method_exists(static::$service, $name)) {
+            return call_user_func_array([static::$service, $name], $arguments);
         }
         // Service方法不存在
         throw new UnknownMethodException($name);
@@ -107,8 +116,9 @@ abstract class StaticService
      * 在调用静态方法之后回调
      * @param string $name
      * @param array  $arguments
+     * @param mixed  $result
      */
-    protected static function afterCall($name, $arguments)
+    protected static function afterCall($name, $arguments, $result)
     {
     }
     
@@ -117,7 +127,7 @@ abstract class StaticService
      * @param string $name
      * @param array  $arguments
      */
-    protected static function beforeCall($name, $arguments)
+    protected static function beforeCall($name = '', $arguments = [])
     {
     }
     
@@ -164,7 +174,7 @@ abstract class StaticService
     /**
      * 获取缓存值
      * @param array $condition
-     * @return null
+     * @return mixed
      */
     protected static function getCache($condition)
     {
@@ -181,5 +191,5 @@ abstract class StaticService
     {
         return false;
     }
-    
+ 
 }
