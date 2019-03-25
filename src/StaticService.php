@@ -3,11 +3,11 @@
 namespace doyzheng\yii2service;
 
 use yii\base\Model;
-use yii\db\ActiveRecord;
+use yii\base\UnknownMethodException;
 use yii\db\ActiveQuery;
+use yii\db\ActiveRecord;
 use yii\db\Transaction;
 use yii\helpers\ArrayHelper;
-use yii\base\UnknownMethodException;
 
 /**
  * yii2 数据层服务静态方法调用类
@@ -57,9 +57,9 @@ abstract class StaticService
     protected static $baseWhere;
     
     /**
-     * @var Service
+     * @var Service[]
      */
-    protected static $service;
+    static $serviceInstances = [];
     
     /**
      * 魔术方法(调用不存在的静态方法)
@@ -98,18 +98,29 @@ abstract class StaticService
      */
     private static function callService($name, $arguments)
     {
-        if (!static::$service) {
+        $service = self::getService();
+        if (method_exists($service, $name)) {
+            return call_user_func_array([$service, $name], $arguments);
+        }
+        // Service方法不存在
+        throw new UnknownMethodException($name);
+    }
+    
+    /**
+     * 获取service实例
+     * @return Service
+     * @throws \yii\base\UnknownClassException
+     */
+    private static function getService()
+    {
+        if (empty(self::$serviceInstances[static::$model])) {
             $config = [
                 'model'     => static::$model,
                 'baseWhere' => static::getBaseWhere()
             ];
-            static::$service = new Service($config);
+            self::$serviceInstances[static::$model] = new Service($config);
         }
-        if (method_exists(static::$service, $name)) {
-            return call_user_func_array([static::$service, $name], $arguments);
-        }
-        // Service方法不存在
-        throw new UnknownMethodException($name);
+        return self::$serviceInstances[static::$model];
     }
     
     /**
@@ -191,5 +202,5 @@ abstract class StaticService
     {
         return false;
     }
- 
+    
 }
